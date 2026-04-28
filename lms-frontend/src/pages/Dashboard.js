@@ -2,8 +2,6 @@ import React, { useEffect, useState } from "react";
 import API from "../services/api";
 import FullCalendar from "@fullcalendar/react";
 import dayGridPlugin from "@fullcalendar/daygrid";
-import "@fullcalendar/common/main.css";
-import "@fullcalendar/daygrid/main.css";
 
 const Dashboard = () => {
   const [tasks, setTasks] = useState([]);
