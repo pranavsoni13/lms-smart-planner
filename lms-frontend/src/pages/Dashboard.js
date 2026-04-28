@@ -1,7 +1,9 @@
 import React, { useEffect, useState } from "react";
 import API from "../services/api";
-import Calendar from "react-calendar";
-import "react-calendar/dist/Calendar.css";
+import FullCalendar from "@fullcalendar/react";
+import dayGridPlugin from "@fullcalendar/daygrid";
+import "@fullcalendar/common/main.css";
+import "@fullcalendar/daygrid/main.css";
 
 const Dashboard = () => {
   const [tasks, setTasks] = useState([]);
@@ -90,10 +92,17 @@ const Dashboard = () => {
         🚀 Smart Study Planner
       </h1>
 
-      {/* CALENDAR */}
-      <div className="mb-6">
-        <Calendar onChange={setDate} value={date} />
-      </div>
+      <div className="mb-8 bg-white rounded-xl p-4 text-black">
+  <FullCalendar
+    plugins={[dayGridPlugin]}
+    initialView="dayGridMonth"
+    height="auto"
+    events={[
+      { title: "OS Revision", date: "2026-04-28" },
+      { title: "DBMS Practice", date: "2026-04-29" },
+    ]}
+  />
+</div>
 
       {/* AI INPUT */}
       <div className="mb-6">
