@@ -10,7 +10,6 @@ const Dashboard = () => {
   const [editText, setEditText] = useState("");
   const [aiInput, setAiInput] = useState("");
   const [aiTasks, setAiTasks] = useState([]);
-  const [date, setDate] = useState(new Date());
 
   useEffect(() => {
     API.get("/planner/")
