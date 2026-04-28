@@ -89,11 +89,18 @@ const Dashboard = () => {
         🚀 Smart Study Planner
       </h1>
 
-      <div className="mb-8 bg-white rounded-xl p-4 text-black">
+      <div className="mb-8 bg-white rounded-xl p-4 text-black max-w-3xl mx-auto shadow-lg">
   <FullCalendar
     plugins={[dayGridPlugin]}
     initialView="dayGridMonth"
-    height="auto"
+    headerToolbar={{
+      left: "prev,next today",
+      center: "title",
+      right: "dayGridMonth"
+    }}
+    height={500}
+    selectable={true}
+    dayMaxEvents={true}
     events={[
       { title: "OS Revision", date: "2026-04-28" },
       { title: "DBMS Practice", date: "2026-04-29" },
