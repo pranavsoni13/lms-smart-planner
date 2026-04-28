@@ -7,20 +7,20 @@ const Register = () => {
   const [password, setPassword] = useState("");
   const navigate = useNavigate();
 
-  const handleRegister = async () => {
-    try {
-      await API.post("/register", {
-        email,
-        password,
-      });
+ const handleRegister = async () => {
+  try {
+    await API.post("/register", {
+      email,
+      password,
+    });
 
-      alert("Registered successfully");
-      navigate("/login");
-    } catch (err) {
-      console.log(err);
-      alert("Registration failed");
-    }
-  };
+    alert("Registered successfully");
+    navigate("/");
+  } catch (err) {
+    console.log(err);
+    alert("Registration failed or user already exists");
+  }
+};
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-black text-white">

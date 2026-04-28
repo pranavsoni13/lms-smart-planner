@@ -8,19 +8,23 @@ const Login = () => {
   const navigate = useNavigate();
 
   const handleLogin = async () => {
-    try {
-      const res = await API.post("/login", {
-        email,
-        password,
-      });
+  try {
+    const res = await API.post("/login", {
+      email,
+      password,
+    });
 
+    if (res.data.access_token) {
       localStorage.setItem("token", res.data.access_token);
-      navigate("/");
-    } catch (err) {
-      console.log(err);
-      alert("Login failed");
+      navigate("/dashboard");
+    } else {
+      alert("Invalid email or password");
     }
-  };
+  } catch (err) {
+    console.log(err);
+    alert("Login failed. Please check your credentials.");
+  }
+};
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-black text-white">
@@ -48,6 +52,15 @@ const Login = () => {
         >
           Login
         </button>
+        <p className="mt-4 text-center">
+  Don’t have an account?{" "}
+  <span
+    onClick={() => navigate("/register")}
+    className="text-blue-400 cursor-pointer"
+  >
+    Signup
+  </span>
+</p>
       </div>
     </div>
   );

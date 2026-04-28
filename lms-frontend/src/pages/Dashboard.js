@@ -87,22 +87,15 @@ const Dashboard = () => {
 
     <div className="flex justify-between items-center mb-6">
   <h1 className="text-3xl font-bold">🚀 Smart Study Planner</h1>
-
-  <div className="flex gap-3">
-    <a
-      href="/login"
-      className="bg-blue-500 px-4 py-2 rounded"
-    >
-      Login
-    </a>
-
-    <a
-      href="/register"
-      className="bg-green-500 px-4 py-2 rounded"
-    >
-      Signup
-    </a>
-  </div>
+  <button
+  onClick={() => {
+    localStorage.removeItem("token");
+    window.location.href = "/";
+  }}
+  className="bg-red-500 px-4 py-2 rounded"
+>
+  Logout
+</button>
 </div>
 
       <div className="mb-8 bg-white rounded-xl p-4 text-black max-w-3xl mx-auto shadow-lg">
