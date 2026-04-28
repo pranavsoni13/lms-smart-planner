@@ -85,19 +85,35 @@ const Dashboard = () => {
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-900 via-black to-gray-800 text-white p-6">
 
-      <h1 className="text-4xl font-bold mb-6">
-        🚀 Smart Study Planner
-      </h1>
+    <div className="flex justify-between items-center mb-6">
+  <h1 className="text-3xl font-bold">🚀 Smart Study Planner</h1>
+
+  <div className="flex gap-3">
+    <a
+      href="/login"
+      className="bg-blue-500 px-4 py-2 rounded"
+    >
+      Login
+    </a>
+
+    <a
+      href="/register"
+      className="bg-green-500 px-4 py-2 rounded"
+    >
+      Signup
+    </a>
+  </div>
+</div>
 
       <div className="mb-8 bg-white rounded-xl p-4 text-black max-w-3xl mx-auto shadow-lg">
   <FullCalendar
     plugins={[dayGridPlugin]}
     initialView="dayGridMonth"
     headerToolbar={{
-      left: "prev,next today",
-      center: "title",
-      right: "dayGridMonth"
-    }}
+  left: "prev,next today",
+  center: "title",
+  right: "dayGridMonth,dayGridWeek"
+}}
     height={500}
     selectable={true}
     dayMaxEvents={true}
