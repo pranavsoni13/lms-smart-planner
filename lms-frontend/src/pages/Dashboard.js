@@ -10,10 +10,22 @@ const Dashboard = () => {
   const [editText, setEditText] = useState("");
   const [aiInput, setAiInput] = useState("");
   const [aiTasks, setAiTasks] = useState([]);
+  const [calendarEvents, setCalendarEvents] = useState([]);
 
   useEffect(() => {
     API.get("/planner/")
-      .then((res) => setTasks(res.data))
+      .then((res) => {
+        setTasks(res.data);
+
+        const formattedEvents = res.data
+          .filter((task) => task.deadline)
+          .map((task) => ({
+            title: task.title,
+            date: task.deadline.split("T")[0],
+          }));
+
+        setCalendarEvents(formattedEvents);
+      })
       .catch((err) => console.log(err));
   }, []);
 
@@ -30,9 +42,29 @@ const Dashboard = () => {
 
       const updated = await API.get("/planner/");
       setTasks(updated.data);
+
+      const formattedEvents = updated.data
+        .filter((task) => task.deadline)
+        .map((task) => ({
+          title: task.title,
+          date: task.deadline.split("T")[0],
+        }));
+
+      setCalendarEvents(formattedEvents);
       setNewTask("");
     } catch (err) {
       console.log(err);
+    }
+  };
+
+  // PRIORITY LABEL
+  const getPriorityLabel = (priority) => {
+    if (priority === 3) {
+      return "🔴 High";
+    } else if (priority === 2) {
+      return "🟡 Medium";
+    } else {
+      return "🟢 Low";
     }
   };
 
@@ -40,6 +72,28 @@ const Dashboard = () => {
   const handleDelete = async (id) => {
     try {
       await API.delete(`/tasks/${id}`);
+
+      const updated = await API.get("/planner/");
+      setTasks(updated.data);
+
+      const formattedEvents = updated.data
+        .filter((task) => task.deadline)
+        .map((task) => ({
+          title: task.title,
+          date: task.deadline.split("T")[0],
+        }));
+
+      setCalendarEvents(formattedEvents);
+    } catch (err) {
+      console.log(err);
+    }
+  };
+
+  // TOGGLE STATUS
+  const handleToggleStatus = async (id) => {
+    try {
+      await API.put(`/tasks/${id}/toggle`);
+
       const updated = await API.get("/planner/");
       setTasks(updated.data);
     } catch (err) {
@@ -62,6 +116,15 @@ const Dashboard = () => {
       const updated = await API.get("/planner/");
       setTasks(updated.data);
 
+      const formattedEvents = updated.data
+        .filter((task) => task.deadline)
+        .map((task) => ({
+          title: task.title,
+          date: task.deadline.split("T")[0],
+        }));
+
+      setCalendarEvents(formattedEvents);
+
       setEditingId(null);
       setEditText("");
     } catch (err) {
@@ -75,7 +138,10 @@ const Dashboard = () => {
 
     try {
       const subjects = aiInput.split(",");
-      const res = await API.post("/ai-plan/", { subjects });
+      const res = await API.post("/ai-plan/", {
+        subjects,
+      });
+
       setAiTasks(res.data);
     } catch (err) {
       console.log(err);
@@ -85,37 +151,44 @@ const Dashboard = () => {
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-900 via-black to-gray-800 text-white p-6">
 
-    <div className="flex justify-between items-center mb-6">
-  <h1 className="text-3xl font-bold">🚀 Smart Study Planner</h1>
-  <button
-  onClick={() => {
-    localStorage.removeItem("token");
-    window.location.href = "/";
-  }}
-  className="bg-red-500 px-4 py-2 rounded"
->
-  Logout
-</button>
-</div>
+      {/* TOP BAR */}
+      <div className="flex justify-between items-center mb-6">
+        <div>
+          <h1 className="text-3xl font-bold">
+            📅 Smart Study Planner
+          </h1>
+          <p className="text-gray-400">
+            Welcome, Pranav 👋
+          </p>
+        </div>
 
+        <button
+          onClick={() => {
+            localStorage.removeItem("token");
+            window.location.href = "/";
+          }}
+          className="bg-red-500 px-4 py-2 rounded"
+        >
+          Logout
+        </button>
+      </div>
+
+      {/* CALENDAR */}
       <div className="mb-8 bg-white rounded-xl p-4 text-black max-w-3xl mx-auto shadow-lg">
-  <FullCalendar
-    plugins={[dayGridPlugin]}
-    initialView="dayGridMonth"
-    headerToolbar={{
-  left: "prev,next today",
-  center: "title",
-  right: "dayGridMonth,dayGridWeek"
-}}
-    height={500}
-    selectable={true}
-    dayMaxEvents={true}
-    events={[
-      { title: "OS Revision", date: "2026-04-28" },
-      { title: "DBMS Practice", date: "2026-04-29" },
-    ]}
-  />
-</div>
+        <FullCalendar
+          plugins={[dayGridPlugin]}
+          initialView="dayGridMonth"
+          headerToolbar={{
+            left: "prev,next today",
+            center: "title",
+            right: "dayGridMonth,dayGridWeek",
+          }}
+          height={500}
+          selectable={true}
+          dayMaxEvents={true}
+          events={calendarEvents}
+        />
+      </div>
 
       {/* AI INPUT */}
       <div className="mb-6">
@@ -172,10 +245,15 @@ const Dashboard = () => {
               ) : (
                 <>
                   <p className="text-lg font-semibold">{task.title}</p>
+
                   <p className="text-sm text-gray-300">
                     {task.deadline
                       ? new Date(task.deadline).toLocaleDateString()
                       : "No deadline"}
+                  </p>
+
+                  <p className="text-sm text-gray-300">
+                    {getPriorityLabel(task.priority)}
                   </p>
                 </>
               )}
@@ -190,6 +268,7 @@ const Dashboard = () => {
               </button>
             ) : (
               <div className="flex gap-2">
+
                 <button
                   onClick={() => handleEdit(task)}
                   className="bg-yellow-500 px-3 py-1 rounded"
@@ -198,11 +277,19 @@ const Dashboard = () => {
                 </button>
 
                 <button
+                  onClick={() => handleToggleStatus(task.id)}
+                  className="bg-green-500 px-3 py-1 rounded"
+                >
+                  {task.status === "pending" ? "Complete" : "Undo"}
+                </button>
+
+                <button
                   onClick={() => handleDelete(task.id)}
                   className="bg-red-500 px-3 py-1 rounded"
                 >
                   Delete
                 </button>
+
               </div>
             )}
           </div>
@@ -215,8 +302,11 @@ const Dashboard = () => {
           <h2 className="text-xl mb-2">🤖 AI Plan</h2>
 
           {aiTasks.map((t, i) => (
-            <div key={i} className="bg-gray-700 p-3 mb-2 rounded">
-              {t.task} (Priority {t.priority})
+            <div
+              key={i}
+              className="bg-gray-700 p-3 mb-2 rounded"
+            >
+              {t.task} ({getPriorityLabel(t.priority)})
             </div>
           ))}
         </div>

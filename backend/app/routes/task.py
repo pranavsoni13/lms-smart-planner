@@ -6,6 +6,7 @@ from app.schemas.task_schema import TaskCreate
 from fastapi import APIRouter
 from fastapi import Body
 from datetime import datetime
+from fastapi import HTTPException
 
 router = APIRouter(prefix="/tasks")
 
@@ -48,6 +49,23 @@ def update_task(task_id: int, updated_data: dict = Body(...)):
 
     db.commit()
     return {"message": "Task updated"}
+
+@router.put("/{task_id}/toggle")
+def toggle_task(task_id: int, db: Session = Depends(get_db)):
+    task = db.query(Task).filter(Task.id == task_id).first()
+
+    if not task:
+        raise HTTPException(status_code=404, detail="Task not found")
+
+    if task.status == "pending":
+        task.status = "completed"
+    else:
+        task.status = "pending"
+
+    db.commit()
+    db.refresh(task)
+
+    return task
 
 @router.get("/")
 def get_tasks(db: Session = Depends(get_db)):
