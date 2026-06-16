@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from app.database import SessionLocal
 from app.models.user import User
@@ -20,7 +20,7 @@ def register(user: UserCreate, db: Session = Depends(get_db)):
     existing_user = db.query(User).filter(User.email == user.email).first()
 
     if existing_user:
-        return {"error": "User already exists"}
+        raise HTTPException(status_code=409, detail="User already exists")
 
     try:
         hashed_pw = hash_password(str(user.password).strip())
@@ -37,13 +37,13 @@ def register(user: UserCreate, db: Session = Depends(get_db)):
 
     except Exception as e:
         print("ERROR:", e)
-        return {"error": str(e)}
+        raise HTTPException(status_code=500, detail="Could not create user") from e
 
 @router.post("/login")
 def login(user: UserCreate, db: Session = Depends(get_db)):
     db_user = db.query(User).filter(User.email == user.email).first()
 
     if not db_user or not verify_password(user.password, db_user.password):
-        return {"error": "Invalid credentials"}
+        raise HTTPException(status_code=401, detail="Invalid credentials")
 
-    return {"message": "Login success"}
+    return {"access_token": create_token({"sub": str(db_user.id)}), "token_type": "bearer"}
