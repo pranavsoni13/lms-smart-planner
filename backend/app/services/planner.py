@@ -2,13 +2,13 @@ from datetime import datetime, timedelta
 
 def generate_plan(tasks, daily_hours=4):
     # sort by deadline (earliest first) + high priority first
-    tasks = sorted(tasks, key=lambda x: (x.deadline, -x.priority))
+    tasks = sorted(tasks, key=lambda x: (x.deadline or datetime.max, -x.priority))
 
     plan = []
     today = datetime.now()
 
     for task in tasks:
-        days_left = (task.deadline - today).days
+        days_left = (task.deadline - today).days if task.deadline else 1
         days_left = max(days_left, 1)
 
         # distribute task across days

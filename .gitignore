@@ -1,17 +1,15 @@
 # Python
 __pycache__/
 *.pyc
-*.pyo
-*.pyd
-.env
-venv/
 plan/
+.env
 
-# Node
+# React
 node_modules/
+build/
+
+# VS Code
+.vscode/
 
 # Database
-*.sqlite3
-
-# Misc
-.DS_Store
+*.db

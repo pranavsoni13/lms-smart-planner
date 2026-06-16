@@ -1,316 +1,187 @@
-import React, { useEffect, useState } from "react";
-import API from "../services/api";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import FullCalendar from "@fullcalendar/react";
 import dayGridPlugin from "@fullcalendar/daygrid";
+import { useNavigate } from "react-router-dom";
+import API from "../services/api";
+
+const priorityMeta = {
+  3: { label: "High", className: "priority-high" },
+  2: { label: "Medium", className: "priority-medium" },
+  1: { label: "Low", className: "priority-low" },
+};
 
 const Dashboard = () => {
   const [tasks, setTasks] = useState([]);
-  const [newTask, setNewTask] = useState("");
+  const [form, setForm] = useState({ title: "", deadline: "", priority: 2 });
   const [editingId, setEditingId] = useState(null);
   const [editText, setEditText] = useState("");
   const [aiInput, setAiInput] = useState("");
   const [aiTasks, setAiTasks] = useState([]);
-  const [calendarEvents, setCalendarEvents] = useState([]);
+  const [notice, setNotice] = useState("");
+  const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    API.get("/planner/")
-      .then((res) => {
-        setTasks(res.data);
-
-        const formattedEvents = res.data
-          .filter((task) => task.deadline)
-          .map((task) => ({
-            title: task.title,
-            date: task.deadline.split("T")[0],
-          }));
-
-        setCalendarEvents(formattedEvents);
-      })
-      .catch((err) => console.log(err));
+  const loadTasks = useCallback(async () => {
+    try {
+      const { data } = await API.get("/tasks/");
+      setTasks(data);
+      setNotice("");
+    } catch {
+      setNotice("We couldn't load your tasks. Please try again.");
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
-  // ADD TASK
-  const handleAddTask = async () => {
-    if (!newTask) return;
+  useEffect(() => {
+    loadTasks();
+  }, [loadTasks]);
 
+  const stats = useMemo(() => {
+    const completed = tasks.filter((task) => task.status === "completed").length;
+    const upcoming = tasks.filter(
+      (task) => task.status !== "completed" && task.deadline && new Date(task.deadline) >= new Date()
+    ).length;
+    return { completed, upcoming, progress: tasks.length ? Math.round((completed / tasks.length) * 100) : 0 };
+  }, [tasks]);
+
+  const calendarEvents = tasks
+    .filter((task) => task.deadline)
+    .map((task) => ({
+      id: String(task.id),
+      title: task.title,
+      date: task.deadline.split("T")[0],
+      className: task.status === "completed" ? "event-complete" : `event-priority-${task.priority}`,
+    }));
+
+  const handleAddTask = async (event) => {
+    event.preventDefault();
+    if (!form.title.trim() || !form.deadline) return;
     try {
       await API.post("/tasks/", {
-        task: newTask,
-        date: new Date().toISOString(),
-        priority: 3,
+        title: form.title.trim(),
+        deadline: new Date(`${form.deadline}T12:00:00`).toISOString(),
+        priority: Number(form.priority),
       });
-
-      const updated = await API.get("/planner/");
-      setTasks(updated.data);
-
-      const formattedEvents = updated.data
-        .filter((task) => task.deadline)
-        .map((task) => ({
-          title: task.title,
-          date: task.deadline.split("T")[0],
-        }));
-
-      setCalendarEvents(formattedEvents);
-      setNewTask("");
-    } catch (err) {
-      console.log(err);
+      setForm({ title: "", deadline: "", priority: 2 });
+      await loadTasks();
+    } catch {
+      setNotice("Task could not be created. Check the details and try again.");
     }
   };
 
-  // PRIORITY LABEL
-  const getPriorityLabel = (priority) => {
-    if (priority === 3) {
-      return "🔴 High";
-    } else if (priority === 2) {
-      return "🟡 Medium";
-    } else {
-      return "🟢 Low";
-    }
-  };
-
-  // DELETE
   const handleDelete = async (id) => {
-    try {
-      await API.delete(`/tasks/${id}`);
-
-      const updated = await API.get("/planner/");
-      setTasks(updated.data);
-
-      const formattedEvents = updated.data
-        .filter((task) => task.deadline)
-        .map((task) => ({
-          title: task.title,
-          date: task.deadline.split("T")[0],
-        }));
-
-      setCalendarEvents(formattedEvents);
-    } catch (err) {
-      console.log(err);
-    }
+    await API.delete(`/tasks/${id}`);
+    loadTasks();
   };
 
-  // TOGGLE STATUS
   const handleToggleStatus = async (id) => {
-    try {
-      await API.put(`/tasks/${id}/toggle`);
-
-      const updated = await API.get("/planner/");
-      setTasks(updated.data);
-    } catch (err) {
-      console.log(err);
-    }
-  };
-
-  // EDIT
-  const handleEdit = (task) => {
-    setEditingId(task.id);
-    setEditText(task.title);
+    await API.put(`/tasks/${id}/toggle`);
+    loadTasks();
   };
 
   const handleUpdate = async (id) => {
-    try {
-      await API.put(`/tasks/${id}`, {
-        task: editText,
-      });
-
-      const updated = await API.get("/planner/");
-      setTasks(updated.data);
-
-      const formattedEvents = updated.data
-        .filter((task) => task.deadline)
-        .map((task) => ({
-          title: task.title,
-          date: task.deadline.split("T")[0],
-        }));
-
-      setCalendarEvents(formattedEvents);
-
-      setEditingId(null);
-      setEditText("");
-    } catch (err) {
-      console.log(err);
-    }
+    if (!editText.trim()) return;
+    await API.put(`/tasks/${id}`, { title: editText.trim() });
+    setEditingId(null);
+    setEditText("");
+    loadTasks();
   };
 
-  // AI PLAN
-  const handleAIPlan = async () => {
-    if (!aiInput) return;
+  const handleAIPlan = async (event) => {
+    event.preventDefault();
+    const subjects = aiInput.split(",").map((subject) => subject.trim()).filter(Boolean);
+    if (!subjects.length) return;
+    const { data } = await API.post("/tasks/ai-plan/", { subjects });
+    setAiTasks(data);
+  };
 
-    try {
-      const subjects = aiInput.split(",");
-      const res = await API.post("/ai-plan/", {
-        subjects,
-      });
-
-      setAiTasks(res.data);
-    } catch (err) {
-      console.log(err);
-    }
+  const logout = () => {
+    localStorage.removeItem("token");
+    window.location.href = "/";
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-900 via-black to-gray-800 text-white p-6">
-
-      {/* TOP BAR */}
-      <div className="flex justify-between items-center mb-6">
-        <div>
-          <h1 className="text-3xl font-bold">
-            📅 Smart Study Planner
-          </h1>
-          <p className="text-gray-400">
-            Welcome, Pranav 👋
-          </p>
+    <div className="dashboard-shell">
+      <aside className="sidebar">
+        <div className="brand"><span className="brand-mark">S</span><span>StudyFlow</span></div>
+        <nav className="side-nav" aria-label="Main navigation">
+          <a className="active" href="#overview">▦ <span>Overview</span></a>
+          <a href="#tasks">✓ <span>My tasks</span></a>
+          <a href="#calendar">□ <span>Calendar</span></a>
+          <a href="#focus">✦ <span>AI planner</span></a>
+        </nav>
+        <div className="sidebar-tip">
+          <span>✦</span>
+          <strong>Stay consistent</strong>
+          <p>Small progress every day adds up to big results.</p>
         </div>
+        <button className="logout-button" onClick={logout}>↪ <span>Sign out</span></button>
+      </aside>
 
-        <button
-          onClick={() => {
-            localStorage.removeItem("token");
-            window.location.href = "/";
-          }}
-          className="bg-red-500 px-4 py-2 rounded"
-        >
-          Logout
-        </button>
-      </div>
-
-      {/* CALENDAR */}
-      <div className="mb-8 bg-white rounded-xl p-4 text-black max-w-3xl mx-auto shadow-lg">
-        <FullCalendar
-          plugins={[dayGridPlugin]}
-          initialView="dayGridMonth"
-          headerToolbar={{
-            left: "prev,next today",
-            center: "title",
-            right: "dayGridMonth,dayGridWeek",
-          }}
-          height={500}
-          selectable={true}
-          dayMaxEvents={true}
-          events={calendarEvents}
-        />
-      </div>
-
-      {/* AI INPUT */}
-      <div className="mb-6">
-        <input
-          type="text"
-          placeholder="Enter subjects (OS, DBMS, ML)"
-          value={aiInput}
-          onChange={(e) => setAiInput(e.target.value)}
-          className="p-2 rounded text-black w-full mb-2"
-        />
-
-        <button
-          onClick={handleAIPlan}
-          className="bg-purple-500 hover:bg-purple-600 px-4 py-2 rounded"
-        >
-          Generate AI Plan
-        </button>
-      </div>
-
-      {/* ADD TASK */}
-      <div className="mb-6 flex gap-2">
-        <input
-          type="text"
-          placeholder="Enter new task..."
-          value={newTask}
-          onChange={(e) => setNewTask(e.target.value)}
-          className="p-2 rounded text-black w-full"
-        />
-
-        <button
-          onClick={handleAddTask}
-          className="bg-blue-500 hover:bg-blue-600 px-4 py-2 rounded"
-        >
-          Add
-        </button>
-      </div>
-
-      {/* TASK LIST */}
-      {tasks.length === 0 ? (
-        <p>No tasks found</p>
-      ) : (
-        tasks.map((task) => (
-          <div
-            key={task.id}
-            className="bg-white/10 backdrop-blur-md p-4 mb-3 rounded flex justify-between items-center"
-          >
-            <div className="w-full mr-4">
-              {editingId === task.id ? (
-                <input
-                  value={editText}
-                  onChange={(e) => setEditText(e.target.value)}
-                  className="p-2 rounded text-black w-full"
-                />
-              ) : (
-                <>
-                  <p className="text-lg font-semibold">{task.title}</p>
-
-                  <p className="text-sm text-gray-300">
-                    {task.deadline
-                      ? new Date(task.deadline).toLocaleDateString()
-                      : "No deadline"}
-                  </p>
-
-                  <p className="text-sm text-gray-300">
-                    {getPriorityLabel(task.priority)}
-                  </p>
-                </>
-              )}
-            </div>
-
-            {editingId === task.id ? (
-              <button
-                onClick={() => handleUpdate(task.id)}
-                className="bg-green-500 px-3 py-1 rounded"
-              >
-                Save
-              </button>
-            ) : (
-              <div className="flex gap-2">
-
-                <button
-                  onClick={() => handleEdit(task)}
-                  className="bg-yellow-500 px-3 py-1 rounded"
-                >
-                  Edit
-                </button>
-
-                <button
-                  onClick={() => handleToggleStatus(task.id)}
-                  className="bg-green-500 px-3 py-1 rounded"
-                >
-                  {task.status === "pending" ? "Complete" : "Undo"}
-                </button>
-
-                <button
-                  onClick={() => handleDelete(task.id)}
-                  className="bg-red-500 px-3 py-1 rounded"
-                >
-                  Delete
-                </button>
-
-              </div>
-            )}
+      <main className="dashboard-main">
+        <header className="dashboard-header" id="overview">
+          <div>
+            <p className="eyebrow">Monday · Your study workspace</p>
+            <h1>Ready to make progress?</h1>
+            <p>Plan your priorities, stay focused, and finish the week strong.</p>
           </div>
-        ))
-      )}
+          <div className="profile-pill"><span className="avatar">ST</span><span><strong>Student</strong><small>Learning mode</small></span></div>
+        </header>
 
-      {/* AI TASKS */}
-      {aiTasks.length > 0 && (
-        <div className="mt-6">
-          <h2 className="text-xl mb-2">🤖 AI Plan</h2>
+        {notice && <div className="notice" role="alert">{notice}</div>}
 
-          {aiTasks.map((t, i) => (
-            <div
-              key={i}
-              className="bg-gray-700 p-3 mb-2 rounded"
-            >
-              {t.task} ({getPriorityLabel(t.priority)})
-            </div>
-          ))}
-        </div>
-      )}
+        <section className="stat-grid" aria-label="Study summary">
+          <article className="stat-card accent-purple"><span className="stat-icon">✓</span><div><p>Completed</p><strong>{stats.completed}</strong><small>of {tasks.length} total tasks</small></div></article>
+          <article className="stat-card accent-coral"><span className="stat-icon">⌁</span><div><p>Coming up</p><strong>{stats.upcoming}</strong><small>active deadlines</small></div></article>
+          <article className="stat-card accent-green"><span className="stat-icon">↗</span><div><p>Overall progress</p><strong>{stats.progress}%</strong><div className="progress-track"><span style={{ width: `${stats.progress}%` }} /></div></div></article>
+        </section>
+
+        <section className="dashboard-grid">
+          <div className="content-stack">
+            <article className="panel" id="tasks">
+              <div className="panel-heading"><div><span className="section-label">Today’s focus</span><h2>Your task list</h2></div><span className="count-badge">{tasks.length} tasks</span></div>
+              <form className="task-form" onSubmit={handleAddTask}>
+                <input aria-label="Task title" placeholder="What do you need to finish?" value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} />
+                <input aria-label="Deadline" type="date" value={form.deadline} onChange={(e) => setForm({ ...form, deadline: e.target.value })} />
+                <select aria-label="Priority" value={form.priority} onChange={(e) => setForm({ ...form, priority: e.target.value })}>
+                  <option value="3">High</option><option value="2">Medium</option><option value="1">Low</option>
+                </select>
+                <button className="primary-button" type="submit">＋ Add task</button>
+              </form>
+              <div className="task-list">
+                {loading ? <div className="empty-state">Loading your plan…</div> : tasks.length === 0 ? <div className="empty-state"><span>✓</span><strong>Your slate is clear</strong><p>Add your first task above to get started.</p></div> : tasks.map((task) => {
+                  const priority = priorityMeta[task.priority] || priorityMeta[1];
+                  return (
+                    <div className={`task-row ${task.status === "completed" ? "is-complete" : ""}`} key={task.id}>
+                      <button className="check-button" aria-label={`Mark ${task.title} ${task.status === "completed" ? "incomplete" : "complete"}`} onClick={() => handleToggleStatus(task.id)}>{task.status === "completed" ? "✓" : ""}</button>
+                      <div className="task-content">
+                        {editingId === task.id ? <input autoFocus value={editText} onChange={(e) => setEditText(e.target.value)} onKeyDown={(e) => e.key === "Enter" && handleUpdate(task.id)} /> : <strong>{task.title}</strong>}
+                        <span>{task.deadline ? new Date(task.deadline).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" }) : "No deadline"}</span>
+                      </div>
+                      <span className={`priority-pill ${priority.className}`}>{priority.label}</span>
+                      <div className="task-actions">
+                        {editingId === task.id ? <button onClick={() => handleUpdate(task.id)}>Save</button> : <button onClick={() => { setEditingId(task.id); setEditText(task.title); }}>Edit</button>}
+                        <button className="delete-action" onClick={() => handleDelete(task.id)}>Delete</button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </article>
+
+            <article className="panel ai-panel" id="focus">
+              <div className="ai-copy"><span className="sparkle">✦</span><div><span className="section-label">Smart suggestions</span><h2>Build a focused study plan</h2><p>Add subjects separated by commas and get an instant priority plan.</p></div></div>
+              <form className="ai-form" onSubmit={handleAIPlan}><input placeholder="e.g. Algorithms, Physics, Design" value={aiInput} onChange={(e) => setAiInput(e.target.value)} /><button className="primary-button" type="submit">Generate plan</button></form>
+              {aiTasks.length > 0 && <div className="ai-results">{aiTasks.map((task) => <span key={task.task}>{task.task}<b>Priority {task.priority}</b></span>)}</div>}
+            </article>
+          </div>
+
+          <article className="panel calendar-panel" id="calendar">
+            <div className="panel-heading"><div><span className="section-label">Schedule</span><h2>Deadline calendar</h2></div></div>
+            <FullCalendar plugins={[dayGridPlugin]} initialView="dayGridMonth" headerToolbar={{ left: "prev", center: "title", right: "today next" }} height="auto" dayMaxEvents events={calendarEvents} />
+          </article>
+        </section>
+      </main>
     </div>
   );
 };
